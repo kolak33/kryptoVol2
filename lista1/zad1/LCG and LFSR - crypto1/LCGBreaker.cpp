@@ -46,7 +46,6 @@ LL LCGBreaker::CompMultiplier(std::vector<LL> &states, LL lModulus)
 	ATLASSERT(states.size() >= 3);
 	LL lMultiplier = PMod((states[2] - states[1]) * ModInv(states[1] - states[0], lModulus), lModulus);
 	return lMultiplier;
-	//return CompIncrement(lModulus, lMultiplier, states);
 }
 
 LL LCGBreaker::CompModulus(std::vector<LL> &states)
@@ -71,7 +70,6 @@ LL LCGBreaker::CompModulus(std::vector<LL> &states)
 
 	LL lModulus = std::abs(lGCD);
 	return lModulus;
-	//return CompMultiplier(states, lModulus);
 }
 
 LL LCGBreaker::GCD(LL a, LL b)
