@@ -6,9 +6,11 @@
 #include <openssl\rand.h>
 #include <boost/algorithm/string/replace.hpp>
 #include <cstring>
+#include "FileReader.h"
 
 AES256::AES256()
 	: m_iKeySizeInBytes(32)
+	, m_iIVSize(16)
 {
 }
 
@@ -142,31 +144,16 @@ int AES256::FindSecretKeyPosition(CkJavaKeyStore &jceks, std::string &strSecretK
 	return -1;
 }
 
-std::vector<char> AES256::ReadAllBytes(char const* filename)
-{
-	std::ifstream ifs(filename, std::ios::binary | std::ios::ate);
-	std::ifstream::pos_type pos = ifs.tellg();
-
-	std::vector<char> result(pos);
-
-	ifs.seekg(0, std::ios::beg);
-	ifs.read(result.data(), pos);
-
-	return result;
-}
-
-
-
 bool AES256::GenerateRandomIV(unsigned char **iv, bool &bOutAllocated)
 {
 	if (*iv == nullptr)
 	{
-		*iv = new unsigned char[m_iKeySizeInBytes / 2]; // 128bits block
+		*iv = new unsigned char[m_iIVSize]; // 128bits block
 		RAND_poll();
 		if (RAND_bytes(*iv, sizeof(*iv)) != 1)
 		{
 			(*iv)[0] = (unsigned char)'k'; (*iv)[1] = (unsigned char)'u'; (*iv)[2] = (unsigned char)'b'; (*iv)[3] = (unsigned char)'a';
-			for (int i = 4; i < m_iKeySizeInBytes / 2; ++i)
+			for (int i = 4; i < m_iIVSize; ++i)
 			{
 				(*iv)[i] = (unsigned char)(rand() % 256);
 			}
@@ -188,7 +175,7 @@ bool AES256::SaveCipherToFile(unsigned char *ciphertext, int ciphertextLen, unsi
 	if (!file.good())
 		return false;
 
-	file.write(reinterpret_cast<const char*>(iv), m_iKeySizeInBytes / 2);
+	file.write(reinterpret_cast<const char*>(iv), m_iIVSize);
 	file.write(reinterpret_cast<const char*>(ciphertext), ciphertextLen);
 
 	return true;
@@ -228,7 +215,8 @@ bool AES256::EncryptFile(std::string &strFileName, std::string &strPathToTheKeyS
 	if (!LoadSecretKey(jceks, strKeyIdentifier, strKeyPassword, strSecretKey))
 		return false;
 
-	std::vector<char> rawFile = ReadAllBytes(strFileName.c_str());
+	FileReader reader;
+	std::vector<char> rawFile = reader.ReadAllBytes(strFileName.c_str());
 	unsigned char *plaintext = reinterpret_cast<unsigned char*>(rawFile.data());
 
 	bool bAllocatedIV = false;
@@ -249,8 +237,6 @@ bool AES256::EncryptFile(std::string &strFileName, std::string &strPathToTheKeyS
 	}
 
 	int ciphertextLen = Encrypt(plaintext, rawFile.size(), (unsigned char*)strSecretKey.c_str(), newIV, ciphertext, cipher_mode);
-	if (ciphertextLenCalc != ciphertextLen)
-		return false;
 
 	bool bSavedToFile = SaveCipherToFile(ciphertext, ciphertextLen, newIV, strFileName);
 
@@ -272,15 +258,16 @@ bool AES256::DecryptFile(std::string &strFileName, std::string &strPathToTheKeyS
 	if (!LoadSecretKey(jceks, strKeyIdentifier, strKeyPassword, strSecretKey))
 		return false;
 
-	std::vector<char> rawFile = ReadAllBytes(strFileName.c_str());
+	FileReader reader;
+	std::vector<char> rawFile = reader.ReadAllBytes(strFileName.c_str());
 	unsigned char *ciphertext = reinterpret_cast<unsigned char*>(rawFile.data());
 
-	unsigned char *iv = new unsigned char[m_iKeySizeInBytes / 2];
-	std::memcpy(iv, ciphertext, m_iKeySizeInBytes / 2);
+	unsigned char *iv = new unsigned char[m_iIVSize];
+	std::memcpy(iv, ciphertext, m_iIVSize);
 
-	ciphertext += (m_iKeySizeInBytes / 2); // omit iv
+	ciphertext += (m_iIVSize); // omit iv
 
-	int ciphertextLen = rawFile.size() - m_iKeySizeInBytes / 2;
+	int ciphertextLen = rawFile.size() - m_iIVSize;
 	unsigned char *plaintext = new unsigned char[ciphertextLen];
 	if (plaintext == nullptr)
 	{

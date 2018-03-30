@@ -1,0 +1,1 @@
+test1 double epsilon1 = (double)1.0 / (1.0 - (rangePercent / (double)100.0)) - 1.0;

@@ -35,7 +35,6 @@ private:
 	bool LoadKeystore(std::string &strPathToTheKeyStore, std::string &strKeystorePassword, CkJavaKeyStore &outJceks);
 	bool LoadSecretKey(CkJavaKeyStore &jceks, std::string &strSecretKeyAlias, std::string &strKeyPassword, std::string &outSecretKey);
 	int FindSecretKeyPosition(CkJavaKeyStore &jceks, std::string &strSecretKeyAlias);
-	std::vector<char> ReadAllBytes(char const* filename);
 	bool GenerateRandomIV(unsigned char **iv, bool &bOutAllocated);
 	bool SaveCipherToFile(unsigned char *ciphertext, int ciphertextLen, unsigned char *iv, std::string &strFileName);
 	bool SavePlainToFile(unsigned char *plaintext, int plaintextLen, std::string &strFileName);
@@ -48,5 +47,6 @@ private:
 		unsigned char *iv, unsigned char *plaintext, const EVP_CIPHER *cipher_mode);
 
 	int m_iKeySizeInBytes;
+	int m_iIVSize;
 };
 
