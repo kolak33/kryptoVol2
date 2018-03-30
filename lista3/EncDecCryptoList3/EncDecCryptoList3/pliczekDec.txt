@@ -1,0 +1,4 @@
+For my purposes I decided to use the AES API directly. I made this decision based on the fact that I seemed to get further faster with the examples that used the AES API. As I gain proficiency with OpenSSL I'll be able to come back later and (hopefully) swallow the EVP API if
+blabla
+wiecej blabla
+no i koniec.
