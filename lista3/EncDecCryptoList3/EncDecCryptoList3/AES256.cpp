@@ -7,16 +7,31 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <cstring>
 #include "FileReader.h"
+#include <random>
 
 AES256::AES256()
 	: m_iKeySizeInBytes(32)
 	, m_iIVSize(16)
+	, m_key(nullptr)
 {
+	RAND_poll();
+}
+
+AES256::AES256(std::string &strPathToTheKeyStore, std::string &strKeystorePassword,
+	std::string &strKeyIdentifier, std::string &strKeyPassword)
+	: m_iKeySizeInBytes(32)
+	, m_iIVSize(16)
+	, m_key(nullptr)
+{
+	RAND_poll();
+	ReadKey(strPathToTheKeyStore, strKeystorePassword, strKeyIdentifier, strKeyPassword);
 }
 
 
 AES256::~AES256()
 {
+	if (m_key != nullptr)
+		delete[]m_key;
 }
 
 void AES256::HandleErrors(void)
@@ -149,7 +164,6 @@ bool AES256::GenerateRandomIV(unsigned char **iv, bool &bOutAllocated)
 	if (*iv == nullptr)
 	{
 		*iv = new unsigned char[m_iIVSize]; // 128bits block
-		RAND_poll();
 		if (RAND_bytes(*iv, sizeof(*iv)) != 1)
 		{
 			(*iv)[0] = (unsigned char)'k'; (*iv)[1] = (unsigned char)'u'; (*iv)[2] = (unsigned char)'b'; (*iv)[3] = (unsigned char)'a';
@@ -158,7 +172,7 @@ bool AES256::GenerateRandomIV(unsigned char **iv, bool &bOutAllocated)
 				(*iv)[i] = (unsigned char)(rand() % 256);
 			}
 			std::cout << "Error while generating random IV, generated low quality IV" << std::endl;
-			return false;
+		//	return false;
 		}
 		bOutAllocated = true;
 	}
@@ -202,6 +216,24 @@ unsigned int AES256::CalcCiphertextLen(unsigned int plaintextLen)
 	unsigned int paddingLen = plaintextLen % blockSize > 0 ? blockSize - plaintextLen % blockSize : 0; // padding in last 16 byte block
 
 	return plaintextLen + paddingLen;
+}
+
+void AES256::ReadKey(std::string &strPathToTheKeyStore, std::string &strKeystorePassword,
+	std::string &strKeyIdentifier, std::string &strKeyPassword)
+{
+	if (m_key != nullptr)
+		delete[]m_key;
+
+	CkJavaKeyStore jceks;
+	if (!LoadKeystore(strPathToTheKeyStore, strKeyPassword, jceks))
+		return;
+
+	std::string strSecretKey;
+	if (!LoadSecretKey(jceks, strKeyIdentifier, strKeyPassword, strSecretKey))
+		return;
+
+	m_key = new unsigned char[m_iKeySizeInBytes];
+	std::memcpy(m_key, strSecretKey.c_str(), m_iKeySizeInBytes);
 }
 
 bool AES256::EncryptFile(std::string &strFileName, std::string &strPathToTheKeyStore, std::string &strKeystorePassword,
@@ -277,11 +309,68 @@ bool AES256::DecryptFile(std::string &strFileName, std::string &strPathToTheKeyS
 	}
 
 	int plaintextLen = Decrypt(ciphertext, ciphertextLen, (unsigned char*)strSecretKey.c_str(), iv, plaintext, cipher_mode);
-
 	bool bSavedToFile = SavePlainToFile(plaintext, plaintextLen, strFileName);
 
 	delete[]iv;
 	delete[]plaintext;
 
 	return bSavedToFile;
+}
+
+bool AES256::EncryptMessage(unsigned char* strMessage, int strMessageLen, const EVP_CIPHER *cipher_mode,
+	unsigned char **encryptedMessage, int *encryptedMsgLen, unsigned char **outIV)
+{
+	bool bAllocatedIV = false;
+	unsigned char *newIV = nullptr;
+	if (!GenerateRandomIV(&newIV, bAllocatedIV))
+		return false;
+
+	unsigned int ciphertextLenCalc = CalcCiphertextLen(strMessageLen);
+	unsigned char *ciphertext = new unsigned char[ciphertextLenCalc];
+	if (ciphertext == nullptr)
+	{
+		std::cout << "Can't allocate memory for ciphertext" << std::endl;
+		return false;
+	}
+
+	if (m_key == nullptr)
+	{
+		std::cout << "Key has not been loaded" << std::endl;
+		return false;
+	}
+	int ciphertextLen = Encrypt(strMessage, strMessageLen, m_key, newIV, ciphertext, cipher_mode);
+	*encryptedMessage = ciphertext;
+	*encryptedMsgLen = ciphertextLen;
+	*outIV = newIV;
+
+	return true;
+}
+
+bool AES256::DecryptMessage(unsigned char *strMessage, int strMessageLen, const EVP_CIPHER *cipher_mode,
+	unsigned char *iv, unsigned char **decryptedMessage, int *decryptedMsgLen)
+{
+	unsigned char *ivCopy = new unsigned char[m_iIVSize];
+	std::memcpy(ivCopy, iv, m_iIVSize);
+
+	unsigned char *plaintext = new unsigned char[strMessageLen];
+	if (plaintext == nullptr)
+	{
+		std::cout << "Can't allocate memory for plaintext" << std::endl;
+		delete[]ivCopy;
+		return false;
+	}
+
+	if (m_key == nullptr)
+	{
+		std::cout << "Key has not been loaded" << std::endl;
+		return false;
+	}
+	int plaintextLen = Decrypt(strMessage, strMessageLen, m_key, ivCopy, plaintext, cipher_mode);
+	*decryptedMessage = plaintext;
+	*decryptedMsgLen = plaintextLen;
+
+
+	delete[]ivCopy;
+
+	return true;
 }

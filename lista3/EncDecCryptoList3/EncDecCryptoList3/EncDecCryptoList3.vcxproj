@@ -158,6 +158,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="AES256.h" />
+    <ClInclude Include="AEScbcAttackOnModifiedIVGenerator.h" />
     <ClInclude Include="Base64.h" />
     <ClInclude Include="FileReader.h" />
     <ClInclude Include="stdafx.h" />
@@ -165,6 +166,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AES256.cpp" />
+    <ClCompile Include="AEScbcAttackOnModifiedIVGenerator.cpp" />
     <ClCompile Include="Base64.cpp" />
     <ClCompile Include="EncDecCryptoList3.cpp" />
     <ClCompile Include="FileReader.cpp" />
