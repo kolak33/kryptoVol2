@@ -3,6 +3,8 @@
 
 #include <openssl/rand.h>
 #include <iostream>
+#include <random>
+#include <ctime>
 
 AEScbcAttackOnModifiedIVGenerator::AEScbcAttackOnModifiedIVGenerator(std::string &strPathToTheKeyStore, std::string &strKeystorePassword,
 	std::string &strKeyIdentifier, std::string &strKeyPassword)
@@ -13,6 +15,7 @@ AEScbcAttackOnModifiedIVGenerator::AEScbcAttackOnModifiedIVGenerator(std::string
 	__super::GenerateRandomIV(&newIV, bAllocatedIV);
 
 	m_lastIV = newIV;
+	srand(time(NULL));
 }
 
 AEScbcAttackOnModifiedIVGenerator::AEScbcAttackOnModifiedIVGenerator()
@@ -22,6 +25,7 @@ AEScbcAttackOnModifiedIVGenerator::AEScbcAttackOnModifiedIVGenerator()
 	__super::GenerateRandomIV(&newIV, bAllocatedIV);
 
 	m_lastIV = newIV;
+	srand(time(NULL));
 }
 
 
@@ -47,8 +51,10 @@ bool AEScbcAttackOnModifiedIVGenerator::GenerateRandomIV(unsigned char **iv, boo
 				break;
 		}
 
-		std::memcpy((*iv), tempValue, m_iIVSize);
-		std::memcpy(m_lastIV, tempValue, m_iIVSize);
+		std::memcpy((*iv), tempValue, m_iIVSize); 
+		std::memcpy(m_lastIV, tempValue, m_iIVSize); 
+		//std::memcpy((*iv), m_lastIV, m_iIVSize); //temp
+		//RAND_bytes(*iv, sizeof(*iv));
 		bOutAllocated = true;
 
 		delete[]tempValue;
@@ -70,7 +76,7 @@ void AEScbcAttackOnModifiedIVGenerator::IncrementIV(unsigned char **iv)
 	delete[]tempValue;
 }
 
-void AEScbcAttackOnModifiedIVGenerator::CPAAttack()
+int AEScbcAttackOnModifiedIVGenerator::CPAAttack()
 {
 	// first, get te IV by sending random message
 	unsigned char *plain1 = new unsigned char[m_iIVSize];
@@ -114,13 +120,18 @@ void AEScbcAttackOnModifiedIVGenerator::CPAAttack()
 	unsigned char *secondMessage = new unsigned char[m_iIVSize];
 	RAND_bytes(secondMessage, m_iIVSize);
 
-	SendToOracle(firstMessage, m_iIVSize, secondMessage, m_iIVSize, &cipherOracle, &cipherOracleLen);
-
+	int bitOracle = SendToOracle(firstMessage, m_iIVSize, secondMessage, m_iIVSize, &cipherOracle, &cipherOracleLen);
+	int bitAdversary;
 	if (std::strncmp((char*)cipherOracle, (char*)cipherIncrementedIV, cipherOracleLen) == 0)
-		std::cout << "First message was sent (incremented IV)\n";
+	{
+		//std::cout << "First message was sent (incremented IV)\n";
+		bitAdversary = 0;
+	}
 	else
-		std::cout << "Second message was sent (random msg)\n";
-
+	{
+		//std::cout << "Second message was sent (random msg)\n";
+		bitAdversary = 1;
+	}
 
 	delete[]plain1;
 	delete[]cipher1;
@@ -133,9 +144,23 @@ void AEScbcAttackOnModifiedIVGenerator::CPAAttack()
 	delete[]cipherOracle;
 	delete[]firstMessage;
 	delete[]secondMessage;
+
+	return (bitOracle == bitAdversary);
 }
 
-void AEScbcAttackOnModifiedIVGenerator::SendToOracle(unsigned char *strMessage1, int strMessage1Len, unsigned char *strMessage2, 
+void AEScbcAttackOnModifiedIVGenerator::TestAttack()
+{
+	int numTests = 500;
+	int correct = 0;
+	for (int i = 0; i < numTests; ++i)
+	{
+		if (CPAAttack())
+			correct++;
+	}
+	std::cout << "Attack correct in " << correct << "/" << numTests << " times.\n";
+}
+
+int AEScbcAttackOnModifiedIVGenerator::SendToOracle(unsigned char *strMessage1, int strMessage1Len, unsigned char *strMessage2, 
 	int strMessage2Len, unsigned char **encryptedMessage, int *encryptedMsgLen)
 {
 	unsigned int rand = std::rand();
@@ -143,27 +168,31 @@ void AEScbcAttackOnModifiedIVGenerator::SendToOracle(unsigned char *strMessage1,
 	if (m_key == nullptr)
 	{
 		std::cout << "Key has not been loaded" << std::endl;
-		return;
+		return -1;
 	}
 
 	if (strMessage1Len != strMessage2Len)
 	{
 		std::cout << "Messages must have the same length" << std::endl;
-		return;
+		return -1;
 	}
 
 	unsigned char *ivtemp;
 	unsigned char *msgToEncrypt;
+	int retVal;
 	if (rand & 1)
 	{
 		msgToEncrypt = strMessage1;
-		std::cout << "ORACLE WILL CIPHER first message, (incremented IV)\n";
+		//std::cout << "ORACLE WILL CIPHER first message, (incremented IV)\n";
+		retVal = 0;
 	}
 	else
 	{
 		msgToEncrypt = strMessage2;
-		std::cout << "ORACLE WILL CIPHER second message, (random msg)\n";
+		//std::cout << "ORACLE WILL CIPHER second message, (random msg)\n";
+		retVal = 1;
 	}
 
 	EncryptMessage(msgToEncrypt, strMessage1Len, EVP_aes_256_cbc(), encryptedMessage, encryptedMsgLen, &ivtemp);
+	return retVal;
 }

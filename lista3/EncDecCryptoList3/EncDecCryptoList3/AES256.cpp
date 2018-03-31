@@ -215,7 +215,7 @@ unsigned int AES256::CalcCiphertextLen(unsigned int plaintextLen)
 	unsigned int blockSize = 16; //in bytes
 	unsigned int paddingLen = plaintextLen % blockSize > 0 ? blockSize - plaintextLen % blockSize : 0; // padding in last 16 byte block
 
-	return plaintextLen + paddingLen;
+	return plaintextLen + paddingLen + blockSize;
 }
 
 void AES256::ReadKey(std::string &strPathToTheKeyStore, std::string &strKeystorePassword,

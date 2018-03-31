@@ -11,13 +11,15 @@ public:
 	AEScbcAttackOnModifiedIVGenerator(std::string &strPathToTheKeyStore, std::string &strKeystorePassword,
 		std::string &strKeyIdentifier, std::string &strKeyPassword);
 
-	void CPAAttack();
+	int CPAAttack();
+
+	void TestAttack();
 
 protected:
 	virtual bool GenerateRandomIV(unsigned char **iv, bool &bOutAllocated);
 	void IncrementIV(unsigned char **iv);
 
-	void SendToOracle(unsigned char *strMessage1, int strMessage1Len, unsigned char *strMessage2, 
+	int SendToOracle(unsigned char *strMessage1, int strMessage1Len, unsigned char *strMessage2, 
 		int strMessage2Len, unsigned char **encryptedMessage, int *encryptedMsgLen);
 
 	unsigned char* m_lastIV;
